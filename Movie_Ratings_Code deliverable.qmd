@@ -1,0 +1,102 @@
+---
+title: "SQL and R- Movie Ratings"
+format: html
+editor: visual
+---
+
+## Introduction
+
+I was able to survery five people with six movies I choice. I successfully stored the data in a SQL and bring it over to R to analyze it. https://github.com/CiaraBonn12/Data607--Second-Week-Assignments
+
+## Database Connection
+
+I used the RPostgres to connect to my local server to bring the data to R studio.
+
+```{r}
+#| label: setup
+#| message: false
+
+library(DBI)
+library(RPostgres)
+library(dplyr)
+library(knitr)
+
+
+db_password <- Sys.getenv("DB_PWD")
+
+con <- dbConnect(RPostgres::Postgres(),
+                 dbname = 'movie_survey',
+                 host = 'localhost',
+                 port = 5432,
+                 user = 'postgres',
+                 password = db_password)
+query <- "SELECT r.name, m.title, rt.rating
+          FROM ratings rt
+          JOIN reviewers r ON rt.reviewer_id = r.reviewer_id
+          JOIN movies m ON rt.movie_id = m.movie_id;"
+
+df <- dbGetQuery(con, query)
+
+# Disconnect as soon as the data is in R
+dbDisconnect(con)
+```
+
+```{r}
+#| label: view-data
+df
+```
+
+## Challenges
+
+Missing values can mess up the rating because there are some people who did not watch certian movies.
+
+```{r}
+#| label: summary-stats
+library(dplyr)
+
+# Calculate the average rating for each movie
+movie_summary <- df %>%
+  group_by(title) %>%
+  summarize(
+    Avg_Rating = mean(rating, na.rm = TRUE),
+    Review_Count = n()
+  ) %>%
+  arrange(desc(Avg_Rating))
+
+# Make it look pretty in the report
+knitr::kable(movie_summary, caption = "Average Ratings by Movie")
+```
+
+## Conclusion
+
+After analyzing the data the surveyed group clearly had a preference for the movies with higher production visibility, with Sinners having the highest rating. I handle the missing data problem by not adding it to just focus on the completed reviews. I used the Inner Join strategy for the data acquisition phase. I could also extend this work by using Z-scores because I know that some of my reviewers have reviewers bias.
+
+## Methods
+
+Step 1: Data Collection & Normalization I collected ratings for 6 movies from 5 different participants. To ensure data integrity, I designed a relational schema with three normalized tables: movies, reviewers, and ratings. This many-to-many relationship is handled by the ratings table acting as a junction table.
+
+Step 2: Database Implementation I used PostgreSQL to create the schema and populate the records. This allowed for the use of Primary and Foreign Keys to enforce referential integrity.
+
+Step 3: R Integration & Security Data was pulled into R using the DBI and RPostgres libraries. To adhere to security best practices, I utilized environment variables to mask database credentials, ensuring no passwords were hard-coded in the source file.
+
+Step 4: Analysis & Missing Data Using dplyr, I calculated average ratings. My strategy for missing data was to utilize an Inner Join during the SQL query phase to focus exclusively on completed reviews, ensuring the final dataframe was tidy and ready for summary statistics.To address the challenge of missing survey responses, I collaborated with an AI (Gemini) to refine my SQL INNER JOIN logic. This ensured that the resulting R dataframe only contained complete records, effectively handling missing data through listwise deletion before the analysis began.
+
+I utilized an LLM (Gemini) to assist with troubleshooting the database connection security (specifically using Sys.getenv) and to help structure the narrative sections of this report to meet all rubric requirements
+
+2.  Citing Tools and Sources In Data Science, we cite the packages and software used. You can add a "References" section at the very bottom of your Quarto document.
+
+Software & Packages PostgreSQL Global Development Group. (2026). PostgreSQL Database Management System. https://www.postgresql.org/
+
+Wickham, H., et al. (2023). dplyr: A Grammar of Data Manipulation. R package version 1.1.4. https://dplyr.tidyverse.org/
+
+Ooms, J., et al. (2024). RPostgres: C++ Interface to PostgreSQL. R package version 1.4.6. https://rpostgres.r-dbi.org/
+
+Allaire, J.J., et al. (2026). Quarto: An open-source scientific and technical publishing system. https://quarto.org/
+
+AI Disclosure and Citation
+
+Tool: Gemini (Google)
+
+Usage: This AI was used as a technical collaborator to assist with SQL query optimization, troubleshooting R database connection security (Sys.getenv), and structuring the project narrative to align with grading rubrics.
+
+Verification: All code generated or suggested by the AI was manually tested, verified, and modified to fit the specific local database environment and survey results.
