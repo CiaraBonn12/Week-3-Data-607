@@ -1,0 +1,84 @@
+---
+title: "Global Baseline Estimate"
+format: html
+editor: visual
+---
+
+## Introduction
+This project, I am analyzing a survey dataset containing movie ratings from 5 critics across 6 most recent popular movies. The dataset is sparse, meaning some of the critics have not seen or rated some of the movies. I will use this data to implement a Global Baseline Estimate recommendar system.
+
+https://github.com/CiaraBonn12/Week-3-Data-607
+
+## Approach
+ The formula that is going to be used combines the group average with individual bias. This is a non-personalized recommendation strategy that predicts a rating based on three factors: the overall group average, the specific critic's rating behavior, and the movie's general popularity. The goal is also to use R to tidy my data, calculate the offsets for each movie and critic, and then fill in the blanks.
+
+ ## Approach
+
+The mathematical implementation will follow the formula:
+
+$$\hat{r}_{u,i} = \mu + b_u + b_i$$
+
+
+
+Where:
+* $\hat{r}_{u,i}$ is the **Baseline Estimate** (the predicted rating)
+* $\mu$ is the **Global Mean** (average of all ratings in the dataset)
+* $b_u$ is the **User Bias** (how much a critic deviates from the average)
+* $b_i$ is the **Item Bias** (how much a movie deviates from the average)
+
+I will use `pivot_longer` to tidy the data into a long format so that R can perform group-level calculations on the ratings. I will calculate the **Item Bias** by determining how much a movie’s average rating deviates from the global mean. I will calculate the **User Bias** by determining if a specific critic is generally more or less generous than the average.
+
+
+
+## Challenges
+I anticipate the "Cold Start" to be a problem because of the reviewers that have a few ratings. This makes the User Bias less stable. However, the GBE is specifically designed to handle this by falling back on the on the Global Mean and Movie popularity when specific user data is thin.
+
+## Code
+
+library(tidyverse)
+```{r}
+# 1. Load the libraries FIRST
+library(tidyverse)
+
+# 2. Load your survey data
+ratings_wide <- data.frame(
+  Critic = c("Kenzie", "Boog", "Jim", "Phoebe", "Gabe"),
+  The_Notebook = c(5, 4, 1, 1, NA), 
+  The_Batman = c(2, 1, 5, 4, 5),
+  Mean_Girls = c(5, 5, 2, 2, 1),
+  Inception = c(2, NA, 5, 5, 5),
+  The_Godfather = c(1, 2, 5, 5, 4)
+)
+
+# 3. Tidy the data
+# Now the %>% will work because tidyverse is loaded!
+ratings_long <- ratings_wide %>%
+  pivot_longer(cols = -Critic, names_to = "Movie", values_to = "Rating")
+
+# 4. Calculate the Components
+mu <- mean(ratings_long$Rating, na.rm = TRUE)
+
+user_bias <- ratings_long %>%
+  group_by(Critic) %>%
+  summarise(b_u = mean(Rating, na.rm = TRUE) - mu)
+
+movie_bias <- ratings_long %>%
+  group_by(Movie) %>%
+  summarise(b_i = mean(Rating, na.rm = TRUE) - mu)
+
+# 5. Create the Prediction Table
+predictions <- ratings_long %>%
+  left_join(user_bias, by = "Critic") %>%
+  left_join(movie_bias, by = "Movie") %>%
+  mutate(GBE_Prediction = mu + b_u + b_i)
+
+# View the results
+knitr::kable(head(predictions), caption = "GBE Predictions vs Actual Ratings")
+```
+## Analysis
+The analysis shows that the **Global Mean ($\mu$)** serves as the anchor for all predictions. By calculating **User Bias ($b_u$)**, we can identify which critics are more stringent (negative bias) or lenient (positive bias). Similarly, **Item Bias ($b_i$)** highlights the relative popularity of each movie. For the `NA` values in the original survey, the `GBE_Prediction` column now provides a mathematically grounded estimate of how that critic would likely rate that movie.
+
+## Conclusions
+The Global Baseline Estimate is a robust "entry-level" recommendation system because it accounts for both person-specific behavior and item-specific quality. While it doesn't account for complex user-item interactions (like a critic who only loves horror movies), it effectively solves the problem of sparse data.
+
+**Next Steps:** To improve this, I could implement a **Collaborative Filtering** model that looks for similarities between critics (e.g., if Kenzie and Boog have similar tastes) to further refine the predictions.
