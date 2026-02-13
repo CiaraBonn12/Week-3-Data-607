@@ -1,0 +1,77 @@
+---
+title: "Window Function Approach"
+format: html
+editor: visual
+---
+
+## Introduction
+In this assignment I am going to be analyzing a time-series dataset featuring daily closing prices for two separate digital assests: Bitcoin (BTC) and Ethereum (ETH). The data spans the first 20 days of 2024. The goal is to demonstrate the power of Window Functions to track performance trends, specifically by calculating cumulative averages and smoothing out short-term volatility with moving averages. 
+
+## Approach
+I will be using the `dplyr` package in R, specifically focusing on grouping and windowing operations. My strategy involves three main steps. 
+
+First I will use `group_by(Instrument)` to ensure that the mathematical "windows" are isolated. This prevents the price data from Bitcoin from bleeding into the calculations for Ethereum. 
+
+I will use the `cummean()` window function. This calculates a "running average" that includes all data points from the start of the year up to the current row.
+
+I will implement a sliding window using the `rollmean()`function from the `zoo` library. By setting a window size of k = 6, the system will calculate the average of the current price and the previous five days. this is a common financial analytics technique used to identify trends by filtering out daily "noise."
+
+## Challenges
+One challenge I may face with window functions is handling the "start-up" period. For a six-day moving average, the first five days of the dataset will not have enough prior information to calculate a result, leading to `NA` (null) values. I will handle this by using the `fill = NA` alignment to ensure the code remains reproducible and does not crash when encountering these empty windows. 
+
+```{r window-functions-analysis, message=FALSE, warning=FALSE}
+# 1. Load the libraries
+library(tidyverse)
+library(zoo) # This library is required for the moving average (rollmean)
+
+# 2. Create the Time Series Dataset (Bitcoin and Ethereum)
+# We use two separate items as required by the assignment
+time_series_data <- data.frame(
+  Date = rep(seq(as.Date("2024-01-01"), as.Date("2024-01-20"), by="day"), 2),
+  Instrument = c(rep("Bitcoin", 20), rep("Ethereum", 20)),
+  Price = c(
+    # Simulated Bitcoin Prices (Item 1)
+    42000, 42500, 43000, 42800, 44000, 43500, 45000, 44800, 46000, 45500, 
+    47000, 46500, 48000, 47500, 49000, 48500, 50000, 49500, 51000, 50500,
+    # Simulated Ethereum Prices (Item 2)
+    2200, 2250, 2300, 2280, 2400, 2350, 2500, 2480, 2600, 2550, 
+    2700, 2650, 2800, 2750, 2900, 2850, 3000, 2950, 3100, 3050
+  )
+)
+
+# 3. Apply Window Functions
+# group_by ensures calculations are separate for Bitcoin and Ethereum
+# mutate creates the new columns using window functions
+final_analysis <- time_series_data %>%
+  group_by(Instrument) %>%
+  arrange(Date) %>%
+  mutate(
+    # Cumulative Mean: calculates the Year-To-Date (YTD) Average
+    YTD_Average = cummean(Price),
+    
+    # Rolling Mean: calculates the 6-Day Moving Average
+    # k=6 is the window size; align="right" looks at the past 6 days
+    Six_Day_Moving_Avg = rollmean(Price, k = 6, fill = NA, align = "right")
+  )
+
+# 4. Display the results
+# This sorts the data by Instrument first, so Bitcoin and Ethereum are in clean blocks
+knitr::kable(final_analysis %>% arrange(Instrument, Date) %>% head(15), 
+             caption = "Time Series Analysis: YTD Average and 6-Day Moving Average")
+```
+
+## Analysis
+The table above demonstrates the behavior of window functions on time-series data. 
+
+* **YTD_Average:** We can see the cumulative mean adjusting daily. It starts exactly at the first day's price and becomes less volatile as more data points are added. 
+* **Moving Average:** As anticipated in the challenges section, the `Six_Day_Moving_Avg` column shows `NA` for the first five rows of each instrument. On the sixth day, the function successfully calculates the average of the preceding window.
+
+## Conclusions
+The use of window functions allows for a more nuanced understanding of time-series data compared to simple summary statistics. By isolating instruments through grouping, we can track the individual performance of Bitcoin and Ethereum simultaneously. 
+
+**Key Findings:**
+* The moving average successfully smoothed the "noise" of daily price fluctuations.
+* The YTD average provided a stable benchmark for overall asset performance.
+
+**Future Extensions:**
+To extend this work, I could incorporate "Lead" and "Lag" window functions to calculate daily percentage changes or volatility scores. I could also apply these functions to a larger dataset spanning several years to identify long-term seasonal trends. 
